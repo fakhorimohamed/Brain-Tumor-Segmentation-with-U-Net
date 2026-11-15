@@ -1,143 +1,180 @@
 # Brain Tumor Segmentation using 2D and 3D U-Net
 
-## 1. Project Overview
+A Deep Learning project exploring and comparing **2D and 3D U-Net architectures** for multi-class brain tumor segmentation using multimodal MRI scans from the **BraTS 2019 dataset**.
 
-This project focuses on **brain tumor segmentation using Deep Learning**, based on the BraTS 2019 MRI dataset.
+The project investigates how spatial context influences segmentation performance, comparing slice-based processing with volumetric learning using PyTorch.
 
-The objective is to automatically identify and segment different brain tumor regions from MRI scans using two architectures:
+## Project Overview
 
-- **2D U-Net:** Processes MRI scans slice by slice.
-- **3D U-Net:** Processes 3D MRI volumes using spatial information across multiple slices.
+Brain tumor segmentation aims to identify and delineate tumor regions from MRI scans at the pixel or voxel level.
 
-Both models use four MRI modalities (T1, T1ce, T2, and FLAIR) to predict the tumor regions.
+This project implements two approaches:
 
-## 2. Dataset
+- **2D U-Net:** Segments individual axial MRI slices independently.
+- **3D U-Net:** Processes volumetric MRI patches to capture spatial relationships across adjacent slices.
 
-We use the **BraTS 2019 dataset**, which contains MRI scans from patients diagnosed with brain gliomas.
+Both architectures use four MRI modalities (T1, T1ce, T2, and FLAIR) to predict three tumor subregions and the background.
 
-Each patient includes four MRI modalities and a ground-truth segmentation mask.
+## Dataset
 
-| MRI Modality | Description |
+The project uses the **BraTS 2019 training dataset**, containing multimodal brain MRI volumes from patients diagnosed with gliomas.
+
+**Dataset source:** [Brain Tumor Segmentation – BraTS 2019 (Kaggle)](https://www.kaggle.com/datasets/aryashah2k/brain-tumor-segmentation-brats-2019)
+
+### MRI Modalities
+
+| Modality | Description |
 |---|---|
 | T1 | T1-weighted MRI |
-| T1ce | T1-weighted contrast-enhanced MRI |
+| T1ce | Contrast-enhanced T1-weighted MRI |
 | T2 | T2-weighted MRI |
 | FLAIR | Fluid-Attenuated Inversion Recovery |
 
-### Tumor Segmentation Classes
+### Segmentation Labels
 
-The original segmentation masks contain four labels:
+The original BraTS segmentation masks contain the following labels:
 
-| Label | Tumor Region |
-|---|---|
-| 0 | Background |
-| 1 | Necrotic / Non-enhancing Tumor Core (NCR/NET) |
-| 2 | Peritumoral Edema (ED) |
-| 4 | Enhancing Tumor (ET) |
+| Original Label | Model Label | Region |
+|---:|---:|---|
+| 0 | 0 | Background |
+| 1 | 1 | Necrotic / Non-enhancing Tumor Core (NCR/NET) |
+| 2 | 2 | Peritumoral Edema (ED) |
+| 4 | 3 | Enhancing Tumor (ET) |
 
-For model training, the original labels are remapped from `{0, 1, 2, 4}` to `{0, 1, 2, 3}`.
+Original label `4` is remapped to `3` to obtain contiguous class indices for model training.
 
-**Dataset source:** [BraTS 2019 – Kaggle](https://www.kaggle.com/datasets/aryashah2k/brain-tumor-segmentation-brats-2019)
+## Project Pipeline
 
-## 3. Project Workflow
+The implementation follows a common workflow for both architectures:
 
-The project follows these main steps:
-
-1. **Data Exploration:** Explore the MRI modalities, patient structure, and segmentation masks.
+1. **Data Exploration:** Inspect MRI modalities, volume dimensions, and segmentation masks.
 2. **Preprocessing:** Load NIfTI volumes, normalize MRI intensities, and remap segmentation labels.
-3. **Dataset Splitting:** Divide patients into training, validation, and testing sets.
-4. **Model Development:** Implement two different U-Net architectures.
-5. **Training:** Train both models using a hybrid Dice + Cross Entropy loss.
-6. **Evaluation:** Measure segmentation performance using the Dice Similarity Coefficient (DSC).
-7. **Visualization:** Compare predicted tumor regions with the ground-truth masks.
+3. **Dataset Splitting:** Separate patients into training, validation, and test sets to prevent data leakage.
+4. **Model Development:** Implement 2D and 3D U-Net architectures.
+5. **Training:** Optimize both models using a hybrid Dice + Cross-Entropy loss.
+6. **Evaluation:** Measure segmentation quality using the Dice Similarity Coefficient.
+7. **Visualization:** Compare predictions with ground-truth tumor regions.
 
-## 4. 2D U-Net Implementation
+## Model Architectures
 
-The first approach uses a conventional 2D U-Net architecture.
+### 1. 2D U-Net
 
-Instead of processing an entire MRI volume, we extract individual axial slices. Each slice contains four input channels corresponding to the four MRI modalities.
+<details>
+<summary>Architecture details</summary>
 
-**Input shape:** `(Batch, 4, Height, Width)`
+The 2D U-Net processes MRI volumes slice by slice using axial 2D images.
+
+Each input slice contains four channels corresponding to the MRI modalities.
+
+**Input:** `(Batch, 4, Height, Width)`
 
 The architecture consists of:
-- An encoder to extract spatial features.
-- A bottleneck to capture deeper representations.
-- A decoder to reconstruct the segmentation map.
-- Skip connections to preserve spatial information.
 
-The model predicts four classes for every pixel: background and three tumor regions.
+- **Encoder:** Extracts hierarchical spatial features through convolutional blocks and downsampling.
+- **Bottleneck:** Captures deeper feature representations.
+- **Decoder:** Reconstructs spatial resolution through upsampling.
+- **Skip Connections:** Combine encoder and decoder features to preserve spatial details.
+- **Output Layer:** Produces four class logits for each pixel.
 
-## 5. 3D U-Net Implementation
+This approach is computationally efficient but does not explicitly model spatial relationships between adjacent MRI slices.
 
-The second approach uses a 3D U-Net to capture spatial information across multiple MRI slices.
+</details>
 
-Unlike the 2D architecture, 3D U-Net uses 3D convolutions to learn volumetric features.
+### 2. 3D U-Net
 
-Since processing complete MRI volumes requires significant GPU memory, we adopt a **patch-based training strategy**.
+<details>
+<summary>Architecture details</summary>
+
+The 3D U-Net extends the conventional U-Net architecture using 3D convolutions, allowing the model to learn spatial features across depth, height, and width.
+
+Instead of processing individual slices, it operates on volumetric MRI patches.
+
+**Input:** `(Batch, 4, Depth, Height, Width)`
+
+To reduce GPU memory consumption, a patch-based training strategy is adopted:
 
 - **Patch size:** `64 × 64 × 64`
-- **Training:** Random 3D cropping.
-- **Validation and Testing:** Center cropping.
+- **Training:** Random 3D patch extraction.
+- **Validation:** Center cropping.
+- **Testing:** Center cropping.
 
-**Input shape:** `(Batch, 4, Depth, Height, Width)`
+This approach enables volumetric feature learning while keeping memory requirements manageable.
 
-This approach allows the model to learn volumetric tumor structures while reducing GPU memory requirements.
+</details>
 
-## 6. Training Configuration
+## Training Configuration
 
-Both architectures use similar optimization strategies.
-
-| Configuration | 2D U-Net | 3D U-Net |
-|---|---|---|
-| Optimizer | AdamW | AdamW |
-| Learning Rate | 0.0001 | 0.0001 |
-| Weight Decay | 0.00001 | 0.00001 |
-| Loss Function | Dice + CE | Dice + CE |
+| Parameter | 2D U-Net | 3D U-Net |
+|---|---:|---:|
+| Framework | PyTorch | PyTorch |
 | Input Channels | 4 | 4 |
 | Output Classes | 4 | 4 |
+| Optimizer | AdamW | AdamW |
+| Learning Rate | 1e-4 | 1e-4 |
+| Weight Decay | 1e-5 | 1e-5 |
+| Loss Function | Dice + CE | Dice + CE |
 | Batch Size | 4 | 2 |
 | Epochs | 1 | 15 |
 
 ### Loss Function
 
-We use a hybrid **Dice + Cross Entropy Loss** to address the class imbalance problem in medical image segmentation.
-
-- **Cross Entropy:** Measures pixel-wise or voxel-wise classification errors.
-- **Dice Loss:** Measures the overlap between predicted segmentation regions and ground-truth masks.
-
-The combination helps the models learn both accurate class predictions and better tumor-region segmentation.
-
-## 7. Evaluation Metrics
-
-We evaluate both models using the **Dice Similarity Coefficient (DSC)**.
-
-The Dice score measures the overlap between the predicted segmentation and the ground truth.
+Both models use a hybrid Dice + Cross-Entropy loss to address class imbalance between background and tumor regions.
 
 \[
-Dice = \frac{2|P \cap G|}{|P|+|G|}
+\mathcal{L}_{total}
+=
+\lambda\mathcal{L}_{CE}
++
+(1-\lambda)\mathcal{L}_{Dice}
+\]
+
+With equal weighting:
+
+\[
+\mathcal{L}_{total}
+=
+0.5\mathcal{L}_{CE}
++
+0.5\mathcal{L}_{Dice}
+\]
+
+Cross-Entropy provides pixel-wise or voxel-wise classification supervision, while Dice loss encourages better overlap between predicted and ground-truth segmentation regions.
+
+## Evaluation
+
+The primary evaluation metric is the **Dice Similarity Coefficient (DSC)**.
+
+\[
+DSC(P,G)=
+\frac{2|P\cap G|}{|P|+|G|}
 \]
 
 Where:
-- P represents the predicted segmentation.
-- G represents the ground-truth segmentation.
+- \(P\): Predicted segmentation mask.
+- \(G\): Ground-truth segmentation mask.
 
-The evaluation focuses on the three tumor regions, excluding the background class.
+Evaluation focuses on the three tumor regions, excluding background:
 
-For the 2D model, we evaluate individual slices and reconstruct predictions for volume-level evaluation.
+- NCR/NET
+- ED
+- ET
 
-For the 3D model, we evaluate the predicted 3D patches.
+The 2D model produces slice-level predictions that can be reconstructed into 3D volumes for volumetric evaluation.
 
-## 8. Technologies Used
+The 3D model produces volumetric predictions from input patches. For a fair comparison, predictions should be reconstructed over the complete volume before calculating patient-level Dice scores.
 
-- Python
-- PyTorch
-- NumPy
-- NiBabel
-- Matplotlib
-- Scikit-learn
-- Google Colab
+## Technologies
 
-## 9. Project Structure
+| Category | Tools |
+|---|---|
+| Deep Learning | PyTorch |
+| Medical Imaging | NiBabel |
+| Numerical Computing | NumPy |
+| Visualization | Matplotlib |
+| Data Processing | Scikit-learn |
+| Environment | Google Colab |
+
+## Repository Structure
 
 ```text
 Brain-Tumor-Segmentation/
@@ -150,16 +187,17 @@ Brain-Tumor-Segmentation/
     └── best_model_3d.pth
 ```
 
-*Note: The model checkpoint files are generated after training and can be added to the repository or shared separately.*
+*Model checkpoints are generated during training and are not necessarily included in the repository.*
 
-## 10. Future Improvements
+## Future Improvements
 
-- Increase the training dataset size.
-- Experiment with different U-Net configurations.
-- Improve tumor-region sampling strategies.
-- Compare 2D and 3D segmentation performance.
-- Explore attention mechanisms and other segmentation architectures.
+- Increase the number of training patients.
+- Extend training and optimize hyperparameters.
+- Implement complete-volume inference for the 3D U-Net.
+- Compare per-class and per-patient Dice scores.
+- Investigate tumor-aware patch sampling strategies.
+- Explore attention mechanisms and uncertainty estimation.
 
----
+## Project Objective
 
-**Project Goal:** Explore and compare 2D and 3D deep learning approaches for automated brain tumor segmentation using multimodal MRI data.
+**To investigate the impact of spatial context on brain tumor segmentation by comparing slice-based 2D learning with volumetric 3D learning using multimodal MRI data.**
