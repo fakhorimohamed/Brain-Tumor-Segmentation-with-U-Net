@@ -1,0 +1,47 @@
+
+# =========================
+# IDEs and operating system
+# =========================
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# =========================
+# Environment variables / secrets
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# Datasets and medical images
+# Keep large/private MRI datasets out of Git.
+# =========================
+data/
+dataset/
+datasets/
+*.nii
+*.nii.gz
+*.dcm
+*.mha
+*.mhd
+*.nrrd
+
+# =========================
+# Model weights and checkpoints
+# =========================
+checkpoints/
+weights/
+models/
+*.pt
+*.pth
+*.ckpt
+
+===========
+# Temporary files
+# =========================
+*.tmp
+*.temp
+*.log
